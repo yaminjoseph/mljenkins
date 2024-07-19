@@ -111,13 +111,36 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 # Validation of Docker Installation on Ubunto:
 sudo docker run hellow-world
 
-
 # Add Ubunto Permissions (avoid using sudo)
 sudo usermod -a -G docker jenkins
 sudo usermod -a -G docker $USER
 restart ec2/gcp instance
 docker ps
 
+# GitHub 
+Create a Repository & Push Files
 
+# Generate Github Access Token
+Github > Settings > Developer Setting > Generate Personal Access Tokes > Token Classic
 
+# Jenkins Setup
+Select Instance EC2 > Copy External IP > Add ":8080" > Copy Path
+Select Instance GCP > Copy External IP > Add ":8080" > Copy Path
+
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword ### Jenkis Passwords
+
+Select Instance EC2 > Copy External IP > Add ":8080" > Paste Jenkins Password
+Select Instance GCP > Copy External IP > Add ":8080" > Paste Jenkins Password
+
+Jenkins: Select Pluggins Intall > Add Junit + Github + Email Extension Template
+
+# Jenkins Webhooks Setup
+Manage Jenkins > Credentials > (global) > add credential > secret text > paste github password 
+Github Repository Setting > Webhooks > Add Webhook
+- Payload URL: http://18.116.34.65:8080/github-webhook/
+- Content Type: application/json
+- Just the push event
+
+Manage Jenkins > Systems > Add github Server > Assign the Credential > Test Credential > Check Manage Hooks
+Create New Item > Configure > Selecy Git > Input Repository URL > Branch to Build> */main > Select GitHub hook trigger for GITScm polling
 
