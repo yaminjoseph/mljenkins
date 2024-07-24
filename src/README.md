@@ -142,5 +142,145 @@ Github Repository Setting > Webhooks > Add Webhook
 - Just the push event
 
 Manage Jenkins > Systems > Add github Server > Assign the Credential > Test Credential > Check Manage Hooks
-Create New Item > Configure > Selecy Git > Input Repository URL > Branch to Build> */main > Select GitHub hook trigger for GITScm polling
 
+# Jenkins Docker Setup
+Manage Jenkins > Plugins > Docker Install
+Manage Jenkins > New Cloud > Type Docker > Docker Cloud Details: 
+- Docker Host URI: unix:///var/run/docker.sock 
+- Server Credentials: ADD > username + password (DockerHub Generate Access Token: RWD) + docker id (any)
+
+# Jenkins Email Setup
+Manage Jenkins > System: 
+- System Admin email address: jenkin-admin<admin@yaminjoseph.com>
+- Extended E-Mail Notification: SMTP server: smtp.gmail.com
+- Extended E-Mail Notification: SMTP Port: 465
+- Extended E-Mail Notification: Advace:  Credentials Add > Username and Password (paste generated password on gmail: app)
+- Extended E-Mail Notification: Advace:  Check Use SSL & TLS
+- Default Recipient: joseph.yamin@wearestoria.com
+- Reply to List: joseph.yamin@wearestoria.com
+Default Trigger: Always & Failure Any
+
+
+# Jenkins Project: Build
+Dashboard > New Item:
+- name: 1-Github-Docker
+- Freestyle Project
+- Description
+- Uncheck Restriction 
+- Select Git > Set Repository URL 
+- branch: */main
+- Select: GitHub hook trigger for GITScm polling
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Cloning of Repo Completed"
+  - echo "Build Started"
+
+- Build Step: Add Build Step: Execute Shell:
+  - docker build -t yaminjoseph/cicd:latest .
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Build Completed"
+
+
+- Build Step: Add Build Step: Build Publish Docker image:
+  - Directory for Dockerfile: $WORKSPACE
+  - Advance: Select DockerHub Credentials
+  - Cloud: Docker
+  - Image (Push): yaminjoseph/cicd
+  - Select Push Image
+  - Registry Credentials: Select DockerHub Credentials
+
+- Post Build Actions > Editable Email Notification > Attach Build Log
+
+# Jenkins Project: Train
+Dashboard > New Item:
+- name: 2-Training-Project
+- Freestyle Project
+- Description
+- Uncheck Restriction 
+- Source Code Management: None
+- Select: Build after other projects are built: 1-Github-Docker 
+- Select: Trigger only if build is stable
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Runing the Docker Container of Built Image" 
+  - docker run -d -it --name modelv1 -p 8005:8005 yaminjoseph/cicd:latest bash
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Perfoming Training" 
+  - docker exec modelv1 python prediction_model/training_pipeline.py
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Training Completed & Model Saved" 
+
+- Build Step: Add Build Step: Build Publish Docker image:
+  - Directory for Dockerfile: $WORKSPACE
+  - Advance: Select DockerHub Credentials
+  - Cloud: Docker
+  - Image (Push): yaminjoseph/cicd
+  - Select Push Image
+  - Registry Credentials: Select DockerHub Credentials
+
+Warning for multiple Testing (In Ubuntu Terminal)
+- docker stop modelv1
+- docker rm modelv1
+- docker ps
+
+- Post Build Actions > Attach Build Log
+
+# Jenkins Project: Testing
+Dashboard > New Item:
+- name: 3-ML-Testing
+- Freestyle Project
+- Description
+- Source Code Management: None
+- Select: Build after other projects are built: 2-Training-Project
+
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Testing Started" 
+
+- Build Step: Add Build Step: Execute Shell:
+  - docker exec modelv1 pytest -v --junitxml TestResults.xml --cache-clear
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Test Results Saved in XML File" 
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Copy File From Docker to Host For Reporting Purpose" 
+  - docker cp modelv1:/code/src/TestResults.xml .
+
+- Post Build Actions > Publish JUnit test result report: TestResults.xml
+- Post Build Actions > Editable Email Notification> Attach Build Log
+
+Warning for multiple Testing (In Ubuntu Terminal)
+- docker stop modelv1
+- docker rm modelv1
+- docker ps
+
+# Jenkins Project: Model Deployment
+Dashboard > New Item:
+- name: 4-Deploy-To-Server
+- Freestyle Project
+- Description
+- Source Code Management: None
+- Select: Build after other projects are built: 3-ML-Testing
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Deploy Model to Endpoint" 
+  - docker exec -d -w /code modelv1 python main.py
+
+- Build Step: Add Build Step: Execute Shell:
+  - echo "Deployment Completed on Port 8005" 
+  
+- Post Build Actions > Editable Email Notification> Attach Build Log
+
+Warning for multiple Testing (In Ubuntu Terminal)
+- docker stop modelv1
+- docker rm modelv1
+- docker ps
+
+
+### Test Again
+
+http://18.221.58.160:8005/docs
